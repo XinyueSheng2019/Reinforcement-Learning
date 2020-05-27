@@ -14,13 +14,13 @@ LUNARLANDER_CONFIG = {
     "target_return": 190.0,
     "episode_length": 500,
     "max_timesteps": 200000,
-    "max_time": 30 * 60,
+    "max_time": 60 * 60,
     "eval_freq": 20000,
     "eval_episodes": 10,
-    "learning_rate": 1e-3,
-    "hidden_size": (64, 64),
+    "learning_rate": 0.00021,
+    "hidden_size": (128,128,),
     "target_update_freq": 1000,
-    "batch_size": 64,
+    "batch_size": 128,
     "gamma": 0.99,
     "buffer_capacity": int(1e6),
     "save_filename": "dqn_lunarlander_latest.pt",
@@ -34,7 +34,7 @@ CARTPOLE_CONFIG = {
     "max_time": 30 * 60,
     "eval_freq": 2000,
     "eval_episodes": 20,
-    "learning_rate": 1e-3,
+    "learning_rate": 2.5e-3,
     "hidden_size": (64,),
     "target_update_freq": 1000,
     "batch_size": 64,
@@ -44,8 +44,8 @@ CARTPOLE_CONFIG = {
 }
 
 
-CONFIG = CARTPOLE_CONFIG
-# CONFIG = LUNARLANDER_CONFIG
+# CONFIG = CARTPOLE_CONFIG
+CONFIG = LUNARLANDER_CONFIG
 
 
 def play_episode(
@@ -53,7 +53,7 @@ def play_episode(
     agent,
     replay_buffer,
     train=True,
-    explore=False,
+    explore=True,
     render=False,
     max_steps=200,
     batch_size=64,
@@ -155,12 +155,13 @@ def train(env, config, output=True):
                         agent,
                         replay_buffer,
                         train=False,
-                        explore=False,
+                        explore=True,
                         render=RENDER,
                         max_steps=config["episode_length"],
                         batch_size=config["batch_size"],
                     )
                     eval_returns += episode_return / config["eval_episodes"]
+                print(eval_returns)
                 if output:
                     pbar.write(
                         f"Evaluation at timestep {timesteps_elapsed} returned a mean returns of {eval_returns}"

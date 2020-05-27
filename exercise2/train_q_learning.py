@@ -9,12 +9,12 @@ CONFIG = {
     "eps_max_steps": 100,
     "eval_freq": 5000,
     "gamma": 0.99,
-    "alpha": 0.05,
+    "alpha": 0.048,
     "epsilon": 0.9,
 }
 
 
-def q_learning_eval(env, config, q_table, eval_episodes=10, render=False, output=True):
+def q_learning_eval(env, config, q_table, eval_episodes=100, render=False, output=True):
     """
     Evaluate configuration of Q-learning on given environment when initialised with given Q-table
 

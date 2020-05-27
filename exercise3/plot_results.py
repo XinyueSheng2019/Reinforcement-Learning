@@ -29,17 +29,16 @@ CARTPOLE_CONFIGS = [
 
 LUNARLANDER_TIMESTEPS = 500000
 LUNARLANDER_CONFIGS = [
-    (DQN_LUNARLANDER_CONFIG, "DQN", dqn_train),
+    # (DQN_LUNARLANDER_CONFIG, "DQN", dqn_train),
     (REINFORCE_LUNARLANDER_CONFIG, "REINFORCE", reinforce_train),
 ]
 
-CONFIGS = CARTPOLE_CONFIGS
-# CONFIGS = LUNARLANDER_CONFIGS
+# CONFIGS = CARTPOLE_CONFIGS
+CONFIGS = LUNARLANDER_CONFIGS
 
 def prepare_config(config, alg_name, train_f):
     """
     Add further parameters to configuration file used in evaluation for plots
-
     :param config (Dict): configuration file to extend
     :param alg_name (str): name of algorithm for this configuration
     :param train_f (Callable): training function of algorithm
@@ -77,6 +76,9 @@ def plot_timesteps(values: np.ndarray, xlabel: str, ylabel: str, legend_name: st
 if __name__ == "__main__":
     # execute training and evaluation to generate return plots
     plt.figure(figsize=(8, 8))
+    axes = plt.gca()
+    axes.set_ylim([0,200])
+    hlines = False
 
     env_name = None
     for config, name, train in CONFIGS:
@@ -84,6 +86,17 @@ if __name__ == "__main__":
         prepare_config(config, name, train)
 
         plt.title(f"Average Returns on {env_name}")
+
+        # draw threshold line
+        if hlines == False:
+            x_min = 0
+            x_max = config["max_timesteps"]
+            if env_name.lower() == "lunarlander":
+                plt.hlines(y=190, xmin=x_min, xmax=x_max, colors='k', linestyles='dotted', label="LunarLander threshold")
+            elif env_name.lower() == "cartpole":
+                plt.hlines(y=195, xmin=x_min, xmax=x_max, colors='k', linestyles='dotted', label="Cartpole threshold")
+            hlines = True
+
         print(f"{config['alg']} performance on {env_name}")
 
         env = gym.make(config["env"])
@@ -105,5 +118,5 @@ if __name__ == "__main__":
         plot_timesteps(returns_total, "Timestep", "Mean Eval Returns", name)
 
     assert env_name is not None
-    plt.savefig(f"{env_name.lower()}_results.pdf", format="pdf")
+    plt.savefig(f"{env_name.lower()}_result-REINFORCE.pdf", format="pdf")
     plt.show()

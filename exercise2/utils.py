@@ -25,7 +25,6 @@ def act_to_str(act: int):
 def wolf_visualize_policy(policy: List[float], player: int):
     """
     Plot visualization of Wolf-PHC policy
-
     :param policy (List[float]): player policy as probability distribution for RPS game
     :param player (int): player id (EITHER 1 or 2!)
     """
@@ -61,7 +60,6 @@ def wolf_visualize_policy(policy: List[float], player: int):
 def visualise_q_table(q_table):
     """
     Print visualisation of Q-table for FrozenLake environment
-
     :param q_table (Dict[(Obs, Act), float]): Q-table to visualise as prints
     """
     # extract best acts
@@ -91,7 +89,6 @@ def visualise_q_table(q_table):
 def evaluate(env, agent, eval_episodes, render, output=True):
     """
     Evaluate configuration on given environment when initialised with given Q-table
-
     :param env (gym.Env): environment to execute evaluation on
     :param agent (Agent): agent to act in environment
     :param eval_episodes (int): number of evaluation episodes

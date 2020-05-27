@@ -5,15 +5,17 @@ from rl2020.exercise2.agents import WolfPHCAgent
 from rl2020.exercise2.utils import wolf_visualize_policy
 
 
+
 CONFIG = {
     "total_eps": 1000000,
     "eval_freq": 50000,
-    "learning_rate": 0.001,
     "gamma": 0.99,
     "num_acts": 3,
-    "win_delta": 0.000002,
-    "lose_delta": 0.000004,
-    "init_policy": [0.5, 0.38, 0.12],
+    "alpha": 0.2,
+    "win_delta": 0.00001, #0.00002
+    "lose_delta": 0.000012, #0.000022
+    "init_policy_0": [0.5, 0.12, 0.38],
+    "init_policy_1": [0.5, 0.12, 0.38],
 }
 
 
@@ -21,21 +23,16 @@ def train(env, config):
     """
     Train and evaluate Wolf-PHC Agents on the rock-paper-scissors environment using self-play
     with provided hyperparameters
-
     :param env (gym.Env): environment to execute evaluation on
     :param config (Dict[str, float]): configuration dictionary containing hyperparameters
     :return (float, List[float], List[float], Dict[(Obs, Act), float]):
         total reward over all episodes, list of means and standard deviations of evaluation
         rewards, final Q-table, final state-action counts
     """
-
-    agent_config = {
-        "num_acts": config["num_acts"],
-        "win_delta": config["win_delta"],
-        "lose_delta": config["lose_delta"],
-        "init_policy": config["init_policy"],
-    }
-    agents = [WolfPHCAgent(**agent_config) for _ in range(2)]
+    agents = []
+    for i in range(2):
+        config["init_policy"] = config[f"init_policy_{i}"]
+        agents.append(WolfPHCAgent(**config))
     eval_policies1 = []
     eval_policies2 = []
     avg_rewards1 = []
@@ -44,11 +41,17 @@ def train(env, config):
     reward_list2 = []
 
     total_reward = [0, 0]
+
     for step_counter in range(config["total_eps"]):
         obs = env.reset()
-
+      
+       
         acts = [agent.act(ob) for agent, ob in zip(agents, obs)]
+       
+
         n_obs, rewards, dones, _ = env.step(acts)
+       
+        
 
         total_reward[0] += rewards[0]
         total_reward[1] += rewards[1]
@@ -63,8 +66,8 @@ def train(env, config):
 
         if step_counter % config["eval_freq"] == 0:
             # Store the current policies of agents
-            eval_policies1.append(agents[0].pi_table[obs[0]])
-            eval_policies2.append(agents[1].pi_table[obs[1]])
+            eval_policies1.append(agents[0].pi_table[obs[0]].copy())
+            eval_policies2.append(agents[1].pi_table[obs[1]].copy())
 
             # Average the rewards achieved since previous evaluation
             avg_rewards1.append(sum(reward_list1) / len(reward_list1))

@@ -8,12 +8,12 @@ CONFIG = {
     "total_eps": 50000,
     "eps_max_steps": 100,
     "eval_freq": 5000,
-    "gamma": 0.99,
+    "gamma": 0.995,
     "epsilon": 0.9,
 }
 
 
-def monte_carlo_eval(env, config, q_table, eval_episodes=10, render=False, output=True):
+def monte_carlo_eval(env, config, q_table, eval_episodes=100, render=False, output=True):
     """
     Evaluate configuration of MC on given environment when initialised with given Q-table
 
@@ -70,9 +70,7 @@ def train(env, config, output=True):
         while t < config["eps_max_steps"]:
             agent.schedule_hyperparameters(step_counter, max_steps)
             act = agent.act(obs)
-
             n_obs, reward, done, _ = env.step(act)
-
             obs_list.append(obs)
             rew_list.append(reward)
             act_list.append(act)
@@ -85,7 +83,6 @@ def train(env, config, output=True):
                 break
 
             obs = n_obs
-
         agent.learn(obs_list, act_list, rew_list)
         total_reward += episodic_return
 

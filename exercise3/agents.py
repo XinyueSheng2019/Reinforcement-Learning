@@ -9,6 +9,7 @@ import torch.nn
 from torch.optim import Adam
 from typing import Dict, Iterable, List
 
+
 from rl2020.exercise3.networks import FCNetwork
 from rl2020.exercise3.replay import Transition, ReplayBuffer
 
@@ -143,6 +144,7 @@ class DQN(Agent):
         # ############################################# #
         # WRITE ANY HYPERPARAMETERS YOU MIGHT NEED HERE #
         # ############################################# #
+        self.epsilon = 0.05
         self.learning_rate = learning_rate
         self.update_counter = 0
         self.target_update_freq = target_update_freq
@@ -168,7 +170,9 @@ class DQN(Agent):
         :param timestep (int): current timestep at the beginning of the episode
         :param max_timestep (int): maximum timesteps that the training loop will run for
         """
-        raise NotImplementedError
+        max_deduct, decay = 0.95, 0.1
+        self.epsilon = 1.0 - (min(1.0,timestep/(decay*max_timestep)))*max_deduct
+        self.learning_rate = self.learning_rate - timestep/(decay*max_timestep)*max_deduct
 
     def act(self, obs: np.ndarray, explore: bool):
         """Returns an action (should be called at every timestep)
@@ -182,7 +186,23 @@ class DQN(Agent):
         :param explore (bool): flag indicating whether we should explore (or act greedily)
         :return (sample from self.action_space): action the agent should perform
         """
-        raise NotImplementedError
+        state = torch.from_numpy(obs).float().unsqueeze(0)
+        action_values = self.critics_net(state)
+        action_values = action_values.detach().numpy()
+        opt_action = np.argmax(action_values)
+
+
+        if explore == True:
+            if np.random.rand() < self.epsilon:
+                action = np.random.choice(action_values.size)
+                return action
+            else:
+                return opt_action
+            
+        else:
+            return opt_action
+
+
 
     def update(self, batch: Transition) -> Dict[str, float]:
         """Update function for DQN
@@ -196,9 +216,36 @@ class DQN(Agent):
         :param batch (Transition): batch vector from replay buffer
         :return (Dict[str, float]): dictionary mapping from loss names to value of losses
         """
-        raise NotImplementedError
-        q_loss = 0.0
+        
+        self.update_counter += 1
+
+        states = batch[0]
+        actions = batch[1]
+        next_states = batch[2]
+        rewards = batch[3]
+        dones = batch[4]
+
+        max_next_values = self.critics_target(next_states).max(1)[0].detach().unsqueeze(1)
+       
+        y = rewards + (1-dones) * self.gamma * max_next_values
+        Q = self.critics_net(states).gather(1,actions.long())
+
+        q_loss = torch.nn.MSELoss()(y, Q)
+
+        self.critics_optim.zero_grad()
+        q_loss.backward()
+        for param in self.critics_net.parameters():
+            param.grad.data.clamp_(-1,1)
+        self.critics_optim.step()
+
+        if self.update_counter % self.target_update_freq == 0:
+            self.critics_target.hard_update(self.critics_net)
+
+        
+      
         return {"q_loss": q_loss}
+
+
 
 
 class Reinforce(Agent):
@@ -230,9 +277,14 @@ class Reinforce(Agent):
         STATE_SIZE = observation_space.shape[0]
         ACTION_SIZE = action_space.n
 
+
+
         # ######################################### #
         #  BUILD YOUR NETWORKS AND OPTIMIZERS HERE  #
         # ######################################### #
+
+
+
         self.policy = FCNetwork(
             (STATE_SIZE, *hidden_size, ACTION_SIZE), output_activation=None
         )
@@ -242,13 +294,18 @@ class Reinforce(Agent):
         # ############################################# #
         # WRITE ANY HYPERPARAMETERS YOU MIGHT NEED HERE #
         # ############################################# #
+        
         self.learning_rate = learning_rate
         self.gamma = gamma
+
+        
 
         # ############################### #
         # WRITE ANY AGENT PARAMETERS HERE #
         # ############################### #
-
+         
+        self.save_policy_probs = []
+        
         # ###############################################
         self.saveables.update({"policy": self.policy})
 
@@ -263,7 +320,11 @@ class Reinforce(Agent):
         :param timestep (int): current timestep at the beginning of the episode
         :param max_timestep (int): maximum timesteps that the training loop will run for
         """
-        raise NotImplementedError
+        
+        # max_deduct, decay = 0.95, 0.1
+        # self.gamma = 1.0 - (min(1.0, timestep/(decay * max_timesteps))) * max_deduct
+
+
 
     def act(self, obs: np.ndarray, explore: bool):
         """Returns an action (should be called at every timestep)
@@ -277,7 +338,17 @@ class Reinforce(Agent):
         :param explore (bool): flag indicating whether we should explore
         :return (sample from self.action_space): action the agent should perform
         """
-        return NotImplementedError
+        state = torch.from_numpy(obs).float().unsqueeze(0)
+        probs = self.policy.forward(state)
+        probs = torch.nn.functional.softmax(probs)
+
+        m = Categorical(probs)
+        action = m.sample()
+        self.save_policy_probs.append(m.log_prob(action))
+       
+        return action.item()
+
+
 
     def update(
         self, rewards: List[float], observations: List[np.ndarray], actions: List[int]
@@ -291,6 +362,24 @@ class Reinforce(Agent):
         :param actions (List[int]): applied actions of episode (from first to last)
         :return (Dict[str, float]): dictionary mapping from loss names to loss values
         """
-        raise NotImplementedError
+        self.policy.train()
+        G = 0
         p_loss = 0.0
+        t = len(self.save_policy_probs)-1
+
+        for r in rewards[::-1]:
+            G = r + self.gamma * G
+            p_loss = p_loss - self.save_policy_probs[t] * G 
+            t = t - 1
+
+        p_loss = p_loss/len(rewards)
+
+       
+        self.policy_optim.zero_grad()
+        p_loss.backward()
+        self.policy_optim.step()
+        del self.save_policy_probs[:]
+        
+
+        # print(p_loss)
         return {"p_loss": p_loss}

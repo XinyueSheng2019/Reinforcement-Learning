@@ -80,11 +80,27 @@ class ValueIteration(MDPSolver):
             1D NumPy array with the values of each state.
             E.g. V[3] returns the computed value for state 3
         """
+  
         V = np.zeros(self.state_dim)
-        raise NotImplementedError
-        ...
-        ...
-        ...
+
+        diff = 1.0
+              
+        while diff >= theta:
+            diff = 0.0
+            for s in self.mdp._state_dict:
+                maxlist = []
+                old = V[self.mdp._state_dict[s]]
+                for a in self.mdp._action_dict:
+                    temp = 0.0
+                    for next_s in self.mdp._state_dict:
+                        p = self.mdp.P[self.mdp._state_dict[s],self.mdp._action_dict[a],self.mdp._state_dict[next_s]]
+                        r = self.mdp.R[self.mdp._state_dict[s],self.mdp._action_dict[a],self.mdp._state_dict[next_s]]
+                        Vs = V[self.mdp._state_dict[next_s]]
+                        temp = temp + p * (r + self.gamma * Vs)
+                    maxlist.append(temp)
+
+                V[self.mdp._state_dict[s]] = max(maxlist)
+                diff = max(diff, abs(old - V[self.mdp._state_dict[s]]))
         return V
 
     def _calc_policy(self, V: np.ndarray) -> np.ndarray:
@@ -105,10 +121,22 @@ class ValueIteration(MDPSolver):
             policy[S, OTHER_ACTIONS] = 0
         """
         policy = np.zeros([self.state_dim, self.action_dim])
-        raise NotImplementedError
-        ...
-        ...
-        ...
+     
+        for s in self.mdp._state_dict:
+            action_dict = {}
+            compare = 0.0
+            for a in self.mdp._action_dict:
+                temp = 0.0
+                for next_s in self.mdp._state_dict:
+                    p = self.mdp.P[self.mdp._state_dict[s],self.mdp._action_dict[a],self.mdp._state_dict[next_s]]
+                    r = self.mdp.R[self.mdp._state_dict[s],self.mdp._action_dict[a],self.mdp._state_dict[next_s]]
+                    Vs = V[self.mdp._state_dict[next_s]]
+                    temp = temp + p * (r + self.gamma * Vs)
+                compare = max(compare, temp)
+                action_dict[a]= temp
+            res = [t for t,v in action_dict.items() if v == compare][0]
+            policy[self.mdp._state_dict[s],self.mdp._action_dict[res]] = 1.0
+
         return policy
 
     def solve(self, theta: float = 1e-6) -> Tuple[np.ndarray, np.ndarray]:
@@ -156,10 +184,22 @@ class PolicyIteration(MDPSolver):
             It is indexed as (State) where V[State] is the value of state 'State'
         """
         V = np.zeros(self.state_dim)
-        raise NotImplementedError
-        ...
-        ...
-        ...
+        diff = 1.0
+        dr = 0.9
+        while (diff >= self.theta):
+            diff = 0.0
+            for s in self.mdp._state_dict:
+                old = V[self.mdp._state_dict[s]]
+                temp = 0.0
+                for opt in range(self.action_dim):
+                    if policy[self.mdp._state_dict[s],opt] == 1.0: 
+                        for next_s in self.mdp._state_dict:
+                            p = self.mdp.P[self.mdp._state_dict[s],opt,self.mdp._state_dict[next_s]]
+                            r = self.mdp.R[self.mdp._state_dict[s],opt,self.mdp._state_dict[next_s]]
+                            Vs = V[self.mdp._state_dict[next_s]]
+                            temp = temp + p * (r + dr * Vs)
+                V[self.mdp._state_dict[s]] = temp
+                diff = max(diff,abs(old - V[self.mdp._state_dict[s]]))
         return V
 
     def _policy_improvement(self) -> Tuple[np.ndarray, np.ndarray]:
@@ -184,10 +224,44 @@ class PolicyIteration(MDPSolver):
         # Start with a (random) policy
         policy = np.zeros([self.state_dim, self.action_dim])
         V = np.zeros([self.state_dim])
-        raise NotImplementedError
-        ...
-        ...
-        ...
+        #random init the policy
+        for s in range(self.state_dim):
+            policy[s,0] = 0.0
+            policy[s,1] = 0.0
+            policy[s,2] = 1.0
+
+        V = self._policy_eval(policy)
+
+        policy_stable = False
+        dr = 0.9
+
+        while (policy_stable != True):
+            policy_stable = True
+            for s in self.mdp._state_dict:
+                old_action = (policy[self.mdp._state_dict[s]]).tolist()
+                action_dict = {}
+                for a in self.mdp._action_dict:
+                    temp = 0.0
+                    for next_s in self.mdp._state_dict:
+                        p = self.mdp.P[self.mdp._state_dict[s],self.mdp._action_dict[a],self.mdp._state_dict[next_s]]
+                        r = self.mdp.R[self.mdp._state_dict[s],self.mdp._action_dict[a],self.mdp._state_dict[next_s]]
+                        Vs = V[self.mdp._state_dict[next_s]]
+                        temp = temp + p * (r + dr * Vs)
+                    action_dict[self.mdp._action_dict[a]]= temp    
+                max_act = max(action_dict.values())
+                V[self.mdp._state_dict[s]] = max_act
+                res = [t for t,v in action_dict.items() if v == max_act][0]
+                for opt in range(self.action_dim):
+                    if opt == res:
+                        policy[self.mdp._state_dict[s],opt] = 1.0
+                    else:
+                        policy[self.mdp._state_dict[s],opt] = 0.0
+                if (old_action - policy[self.mdp._state_dict[s]]).any() == True:
+                    
+                    policy_stable = False
+            if policy_stable == False:
+                V = self._policy_eval(policy)
+             
         return policy, V
 
     def solve(self, theta: float = 1e-6) -> Tuple[np.ndarray, np.ndarray]:
@@ -216,15 +290,15 @@ if __name__ == "__main__":
     # Hence, we will only test your implementation on such, in our tool valid, MDPs.
     mdp = MDP()
     mdp.add_transition(
-        #           start   action  end  prob  reward
-        Transition("high", "wait", "high", 1, 2),
-        Transition("high", "search", "high", 0.8, 5),
-        Transition("high", "search", "low", 0.2, 5),
-        Transition("high", "recharge", "high", 1, 0),
-        Transition("low", "recharge", "high", 1, 0),
-        Transition("low", "wait", "low", 1, 2),
-        Transition("low", "search", "high", 0.6, -3),
-        Transition("low", "search", "low", 0.4, 5),
+        #           start   action       end      prob  reward
+        Transition("high",  "wait",     "high",    1,    2),
+        Transition("high", "search",    "high",    0.8,  5),
+        Transition("high", "search",    "low",     0.2,  5),
+        Transition("high", "recharge",  "high",    1,    0),
+        Transition("low",  "recharge",  "high",    1,    0),
+        Transition("low",  "wait",      "low",     1,    2),
+        Transition("low",  "search",    "high",    0.6, -3),
+        Transition("low", "search",     "low",     0.4,  5),
     )
 
     solver = ValueIteration(mdp, 0.9)

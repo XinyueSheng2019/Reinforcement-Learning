@@ -46,6 +46,7 @@ class Agent(ABC):
         self.q_table: DefaultDict = defaultdict(lambda: 0)
 
     def act(self, obs: np.ndarray) -> int:
+
         """Implement the epsilon-greedy action selection here
 
         **YOU MUST IMPLEMENT THIS FUNCTION FOR Q2**
@@ -54,7 +55,13 @@ class Agent(ABC):
             received observation representing the current environmental state
         :return (int): index of selected action
         """
-        raise NotImplementedError
+        act_vals = [self.q_table[obs, act] for act in range(self.n_acts)]
+        max_val = max(act_vals)
+        max_acts = [idx for idx, act_val in enumerate(act_vals) if act_val == max_val]
+        if random.random() < self.epsilon:
+            return random.randint(0, self.n_acts - 1)
+        else:
+            return random.choice(max_acts)
 
     @abstractmethod
     def schedule_hyperparameters(self, timestep: int, max_timestep: int):
@@ -111,8 +118,15 @@ class QLearningAgent(Agent):
         :param done (bool): flag indicating whether a terminal state has been reached
         :return (float): updated Q-value for current observation-action pair
         """
-        raise NotImplementedError
-        return self.q_table[(obs, action)]
+        # Recalculate
+        old_value = self.q_table[obs, action]
+        max_value = max([self.q_table[n_obs,act] for act in range(self.n_acts)])
+        new_value = (1 - self.alpha) * old_value + self.alpha * (reward + self.gamma * (1-done) * max_value) 
+       
+        # update q_table
+        self.q_table[obs, action] = new_value
+
+        return self.q_table[obs, action]
 
     def schedule_hyperparameters(self, timestep: int, max_timestep: int):
         """Updates the hyperparameters
@@ -125,7 +139,11 @@ class QLearningAgent(Agent):
         :param timestep (int): current timestep at the beginning of the episode
         :param max_timestep (int): maximum timesteps that the training loop will run for
         """
-        raise NotImplementedError
+        max_deduct, decay = 0.95, 0.07
+       
+        self.epsilon =  1.0 - (min(1.0, timestep/(decay * max_timestep))) * max_deduct
+
+
 
 
 class MonteCarloAgent(Agent):
@@ -163,7 +181,26 @@ class MonteCarloAgent(Agent):
             indexed by the state action pair.
         """
         updated_values = {}
-        raise NotImplementedError
+
+        n = len(obses)-1
+        G = 0
+        t = 0
+        pairs=[]
+        while (t < len(obses)):
+            pairs.append((obses[t], actions[t]))
+            t = t + 1
+
+        while (n >= 0): #use self.q_table to store Q values
+            G = self.gamma * G + rewards[n]
+            pair = pairs[n]
+            if pair in self.sa_counts:
+                self.sa_counts[pair] = self.sa_counts[pair] + 1
+            else:
+                self.sa_counts[pair] = 1
+            if pair not in pairs[:n]:
+                updated_values[pair] = G
+                self.q_table[pair] = (self.q_table[pair] * (self.sa_counts[pair] - 1) + updated_values[pair])/self.sa_counts[pair]
+            n = n - 1
         return updated_values
 
     def schedule_hyperparameters(self, timestep: int, max_timestep: int):
@@ -177,14 +214,19 @@ class MonteCarloAgent(Agent):
         :param timestep (int): current timestep at the beginning of the episode
         :param max_timestep (int): maximum timesteps that the training loop will run for
         """
-        raise NotImplementedError
+        
+        max_deduct, decay = 0.9, 0.07
+        self.epsilon = 1.0 - (min(1.0, timestep/(decay * max_timestep))) * max_deduct
+        
+
+
+
+
 
 
 class WolfPHCAgent:
     """Agent using the Wolf-PHC algorithm
-
     **YOU MUST COMPLETE THIS CLASS**
-
     DISCLAIMER: This is NOT inheriting from the Agent baseclass!
     """
 
@@ -196,13 +238,12 @@ class WolfPHCAgent:
         win_delta: float,
         lose_delta: float,
         init_policy: List[float],
+        **kwargs
     ):
         """Constructor of WolfPHCAgent
-
         Initializes variables of the Wolf-PhC, such as discount rate, Q-value learning rate
         (alpha), win and lose policy update rates, initial policy, an empty average policy
         dictionary, an empty policy dictionary, and an empty visitation table.
-
         :param gamma (float): discount factor (gamma)
         :param num_acts (int): number of possible actions
         :param alpha (float): learning rate for the Q-Value table update
@@ -210,7 +251,6 @@ class WolfPHCAgent:
         :param lose_delta (float): stochastic policy update rate when losing
         :param init_policy (List[float]): initial probability of choosing actions in
             unvisited states
-
         :attr avg_pi_table (Dict(State, List[float])): average probability of choosing
             actions at states
         :attr pi_table (Dict(State, List[float])): probability of choosing actions
@@ -233,7 +273,7 @@ class WolfPHCAgent:
         self.avg_pi_table: DefaultDict = defaultdict(
             lambda: [0 for _ in range(self.n_acts)]
         )
-        self.pi_table: DefaultDict = defaultdict(lambda: init_policy)
+        self.pi_table: DefaultDict = defaultdict(lambda: init_policy.copy())
         self.vis_table: DefaultDict = defaultdict(lambda: 0)
 
     def learn(
@@ -241,11 +281,8 @@ class WolfPHCAgent:
     ) -> List[float]:
         """Updates the Q-table, policy, average policy, and visitation table
          based on agent experience
-
         **YOU MUST IMPLEMENT THIS FUNCTION FOR Q2**
-
         DISCLAIMER: For RPS we only have a single state and always use 0 as the state/ observation
-
         :param obs (int): observation representing environmental state
         :param action (int): index of the applied action according to experience
         :param reward (float): reward received according to experience
@@ -254,15 +291,67 @@ class WolfPHCAgent:
         :return (List[float]): list containing the updated probabilities of choosing each
             valid action in obs
         """
-        raise NotImplementedError
+        #update value table Q based on observed experience
+
+       
+        old_value = self.q_table[obs,action]
+        max_value = max([self.q_table[n_obs,act] for act in range(self.n_acts)])
+        new_value = old_value + self.gamma * (reward + (1 - done) * max_value - old_value)
+       
+        self.q_table[obs,action] = new_value
+
+        #update average policy avg_pi_table, based on updated values of vis_table
+        self.vis_table[obs] += 1
+        
+        for a in range(self.n_acts):
+            old_policy = self.avg_pi_table[obs][a]
+           
+            new_policy = old_policy + (1/self.vis_table[obs]) * (self.pi_table[obs][a] - old_policy)
+            self.avg_pi_table[obs][a] = new_policy
+
+        #decide the policy update rate using the following rule:
+        E_pi = 0.0
+        E_avg = 0.0
+        for a in range(self.n_acts):
+            E_pi += self.pi_table[obs][a] * self.q_table[obs,a]
+            E_avg  += self.avg_pi_table[obs][a] * self.q_table[obs,a]
+        if E_pi >= E_avg:
+            self.alpha = self.win_delta
+        else:
+            self.alpha = self.lose_delta
+        
+        #to update init_policy, first identity the suboptimal actions
+        max_Q = max([self.q_table[obs,act] for act in range(self.n_acts)])
+        sub_acts = [act for act in range(self.n_acts) if self.q_table[obs,act]!= max_Q]
+        max_acts = [act for act in range(self.n_acts) if self.q_table[obs,act]== max_Q]
+
+        # update policy using the following procedure
+        P_moved = 0
+        for a in sub_acts:
+            P_moved += min(self.alpha/len(sub_acts),self.pi_table[obs][a])
+            self.pi_table[obs][a] -=  min(self.alpha/len(sub_acts),self.pi_table[obs][a])
+        
+        for a in max_acts:
+            self.pi_table[obs][a] += P_moved/(self.n_acts - len(sub_acts))
+            
+        
         return self.pi_table[obs]
 
     def act(self, obs: int) -> int:
         """Implement the stochastic policy action selection here
-
         **YOU MUST IMPLEMENT THIS FUNCTION FOR Q2**
-
         :param obs (int): received observation representing the current environmental state
         :return (int): index of selected action
         """
-        raise NotImplementedError
+
+        act_vals = self.pi_table[obs]
+        act_idx = [idx for idx, act_val in enumerate(act_vals)] 
+
+        p = random.random()
+        for i in range(len(act_idx)):
+            if sum(act_vals[:i])< p <= sum(act_vals[:i+1]):
+                return act_idx[i]
+
+        
+
+        
